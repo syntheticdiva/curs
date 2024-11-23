@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Error</title>
+    <link rel="icon" href="data:,">
+</head>
+<body>
+<div class="error-container">
+    <h1>Ошибка</h1>
+    <div class="error-message">
+        <h2 th:text="${errorMessage}">Сообщение об ошибке</h2>
+        <p th:if="${technicalDetails}" th:text="${technicalDetails}">Технические детали</p>
+        <p>Время: <span th:text="${#dates.format(timestamp, 'dd-MM-yyyy HH:mm:ss')}"></span></p>
+    </div>
+</div>
+</body>
+</html>
+
