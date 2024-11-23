@@ -26,7 +26,7 @@ public class CurrencyController {
         try {
             String yenRate = currencyService.getYenExchangeRate();
             model.addAttribute("yenRate", yenRate);
-            return "index"; // Здесь вы можете оставить строку, если не хотите создавать константу для представления index
+            return "index";
         } catch (CurrencyServiceException e) {
             log.error("Ошибка при получении курса йены", e);
             model.addAttribute("errorMessage", "Не удалось получить курс йены");
