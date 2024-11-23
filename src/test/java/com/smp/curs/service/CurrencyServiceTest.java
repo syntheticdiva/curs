@@ -1,64 +1,108 @@
 package com.smp.curs.service;
 
+import com.smp.curs.exception.CurrencyServiceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class CurrencyServiceTest {
-
-    private CurrencyService currencyService;
+class CurrencyServiceTest {
 
     @Mock
     private RestTemplate restTemplate;
 
+    @InjectMocks
+    private CurrencyService currencyService;
+
+    private static final String MOCK_CURRENCY_URL = "http://test-currency-api.com";
+    private static final String VALID_XML_RESPONSE =
+            "<?xml version=\"1.0\" encoding=\"windows-1251\"?>" +
+                    "<ValCurs Date=\"14.06.2023\" name=\"Foreign Currency Market\">" +
+                    "  <Valute ID=\"R01010\">" +
+                    "    <NumCode>392</NumCode>" +
+                    "    <CharCode>JPY</CharCode>" +
+                    "    <Nominal>100</Nominal>" +
+                    "    <Name>Японских иен</Name>" +
+                    "    <Value>51.4938</Value>" +
+                    "  </Valute>" +
+                    "</ValCurs>";
+
     @BeforeEach
-    public void setUp() {
-        currencyService = new CurrencyService(restTemplate);
-        ReflectionTestUtils.setField(currencyService, "currencyUrl", "http://example.com/currency");
+    void setUp() {
+        // Устанавливаем тестовый URL через ReflectionTestUtils
+        ReflectionTestUtils.setField(currencyService, "currencyUrl", MOCK_CURRENCY_URL);
     }
 
     @Test
-    public void testGetYenExchangeRate_Success() throws Exception {
-        String xmlResponse = "<ValCurs><Valute><CharCode>JPY</CharCode><Value>75.00</Value></Valute></ValCurs>";
-        when(restTemplate.getForObject(anyString(), Mockito.eq(String.class))).thenReturn(xmlResponse);
+    void testGetYenExchangeRate_Success() {
+        // Подготовка
+        when(restTemplate.getForObject(MOCK_CURRENCY_URL, String.class))
+                .thenReturn(VALID_XML_RESPONSE);
 
+        // Выполнение
         String result = currencyService.getYenExchangeRate();
 
-        assertEquals("75.00", result);
+        // Проверка
+        assertEquals("51.4938", result);
+        verify(restTemplate).getForObject(MOCK_CURRENCY_URL, String.class);
     }
 
     @Test
-    public void testGetYenExchangeRate_NoYen() throws Exception {
-        String xmlResponse = "<ValCurs><Valute><CharCode>USD</CharCode><Value>100.00</Value></Valute></ValCurs>";
-        when(restTemplate.getForObject(anyString(), Mockito.eq(String.class))).thenReturn(xmlResponse);
+    void testGetYenExchangeRate_NullResponse() {
+        // Подготовка
+        when(restTemplate.getForObject(MOCK_CURRENCY_URL, String.class))
+                .thenReturn(null);
 
-        String result = currencyService.getYenExchangeRate();
+        // Выполнение и проверка
+        CurrencyServiceException exception = assertThrows(CurrencyServiceException.class,
+                () -> currencyService.getYenExchangeRate());
 
-        assertEquals("Курс йены не найден", result);
+        // Проверяем сообщение об ошибке
+        assertEquals("Ошибка при парсинге XML ответа", exception.getMessage());
+    }
+    @Test
+    void testGetYenExchangeRate_HttpClientError() {
+        // Подготовка
+        when(restTemplate.getForObject(MOCK_CURRENCY_URL, String.class))
+                .thenThrow(new HttpClientErrorException(org.springframework.http.HttpStatus.NOT_FOUND));
+
+        // Выполнение и проверка
+        CurrencyServiceException exception = assertThrows(CurrencyServiceException.class,
+                () -> currencyService.getYenExchangeRate());
+
+        assertTrue(exception.getMessage().contains("Ошибка при обращении к внешнему API"));
     }
 
     @Test
-    public void testGetYenExchangeRate_Error() {
-        when(restTemplate.getForObject(anyString(), Mockito.eq(String.class))).thenThrow(new RuntimeException("Ошибка"));
+    void testGetYenExchangeRate_RestClientError() {
+        // Подготовка
+        when(restTemplate.getForObject(MOCK_CURRENCY_URL, String.class))
+                .thenThrow(new RestClientException("Connection error"));
 
-        String result = currencyService.getYenExchangeRate();
+        // Выполнение и проверка
+        assertThrows(CurrencyServiceException.class,
+                () -> currencyService.getYenExchangeRate());
+    }
 
-        assertEquals("Ошибка получения данных о курсе йены", result);
+    @Test
+    void testGetYenExchangeRate_XmlParseError() {
+        // Подготовка
+        String invalidXml = "Invalid XML";
+        when(restTemplate.getForObject(MOCK_CURRENCY_URL, String.class))
+                .thenReturn(invalidXml);
+
+        // Выполнение и проверка
+        assertThrows(CurrencyServiceException.class,
+                () -> currencyService.getYenExchangeRate());
     }
 }
